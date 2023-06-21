@@ -342,7 +342,7 @@ def main(args):
         args.data_path = '/home/dongjin97/dataset'
         args.input_size = 32
     elif args.data_set == 'IMNET':
-        args.data_path = 'home/imagenet'
+        args.data_path = '/home/imagenet'
         args.input_size = 224
 
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)

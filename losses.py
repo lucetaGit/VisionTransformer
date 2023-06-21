@@ -90,8 +90,6 @@ class CustomPruningLoss(nn.Module):
         # print("Threshold Loss:", torch.sum(torch.sigmoid(self.k*(score + self.c - self.alpha))))
 
         # pruning_loss = 0
-        print("target shape", target.shape)
-        print("x shape", x.shape)
 
 
         score = torch.stack(score)
