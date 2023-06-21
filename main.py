@@ -336,10 +336,14 @@ def main(args):
     # dataset
     if args.data_set == 'CIFAR10':
         args.data_path = '/home/dongjin97/dataset'
+        args.input_size = 32
+
     elif args.data_set == 'CIFAR100':
         args.data_path = '/home/dongjin97/dataset'
+        args.input_size = 32
     elif args.data_set == 'IMNET':
         args.data_path = 'home/imagenet'
+        args.input_size = 224
 
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     dataset_val, _ = build_dataset(is_train=False, args=args)
@@ -401,6 +405,7 @@ def main(args):
         model = vit.utils.str2model(args.model)(
             pretrained=args.pretrained,
             num_classes=args.nb_classes,
+            img_size=args.input_size,
             s   = args.pruning_s,
             c   = args.pruning_c,
             cfg = cfg
@@ -490,7 +495,7 @@ def main(args):
 
 
 
-    model_ema = None
+    # model_ema = None
     # if args.model_ema:
     #     # Important to create EMA model after cuda(), DP wrapper, and AMP but before SyncBN and DDP wrapper
     #     model_ema = ModelEma(
@@ -566,8 +571,8 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
-            if args.model_ema:
-                utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
+            # if args.model_ema:
+            #     utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
         lr_scheduler.step(args.start_epoch)
@@ -613,11 +618,11 @@ def main(args):
 
 
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        test_stats = evaluate(args, data_loader_val, model, device)
+        logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         return
 
-    print(f"Start training for {args.epochs} epochs")
+    logger.info(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
 
@@ -669,7 +674,6 @@ def main(args):
             samples = samples.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
 
-
             if mixup_fn is not None:
                 samples, targets = mixup_fn(samples, targets)
                 
@@ -685,7 +689,7 @@ def main(args):
             loss_value = loss.item()
 
             if not math.isfinite(loss_value):
-                print("Loss is {}, stopping training".format(loss_value))
+                logger.info("Loss is {}, stopping training".format(loss_value))
                 sys.exit(1)
 
             optimizer.zero_grad()
@@ -696,15 +700,15 @@ def main(args):
                         parameters=model.parameters(), create_graph=is_second_order)
 
             torch.cuda.synchronize()
-            if model_ema is not None:
-                model_ema.update(model)
+            # if model_ema is not None:
+            #     model_ema.update(model)
 
             metric_logger.update(loss=loss_value)
             metric_logger.update(lr=optimizer.param_groups[0]["lr"])
             # metric_logger.update(lr=args.lr)
         # gather the stats from all processes
         metric_logger.synchronize_between_processes()
-        logger.info("Averaged stats:", metric_logger)
+        logger.info(f"Averaged stats: {metric_logger}")
         
         train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
@@ -719,16 +723,46 @@ def main(args):
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
-                    'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
                     'args': args,
                 }, checkpoint_path)
              
+                    # 'model_ema': get_state_dict(model_ema),
 
-        test_stats = evaluate(data_loader_val, model, device)
+        # test_stats = evaluate(args, data_loader_val, model, device, logger)
+        # Evaluate DJS
+        # criterion = CustomPruningLoss(c=args.pruning_c, k=args.pruning_k, alpha=args.pruning_alpha, pi = args.pruning_pi)
+        # criterion = torch.nn.CrossEntropyLoss()
+
+        metric_logger = utils.MetricLogger(delimiter="  ")
+        header = 'Test:'
+
+        # switch to evaluation mode
+        model.eval()
+        for images, target in metric_logger.log_every(data_loader, 10, logger, header):
+            images = images.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
+
+            # compute output
+            with torch.cuda.amp.autocast():
+                output = model(images)
+                loss = criterion(images, outputs, targets, scores)
+
+            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+
+            batch_size = images.shape[0]
+            metric_logger.update(loss=loss.item())
+            metric_logger.meters['acc1'].update(acc1.item(), n=batch_size)
+            metric_logger.meters['acc5'].update(acc5.item(), n=batch_size)
+        # gather the stats from all processes
+        metric_logger.synchronize_between_processes()
+        logger.info('* Acc@1 {top1.global_avg:.3f} Acc@5 {top5.global_avg:.3f} loss {losses.global_avg:.3f}'
+            .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
+
+        test_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         
-
+        # Evaluate DJS END
 
 
         if max_accuracy < test_stats["acc1"]:
@@ -741,7 +775,7 @@ def main(args):
                         'optimizer': optimizer.state_dict(),
                         'lr_scheduler': lr_scheduler.state_dict(),
                         'epoch': epoch,
-                        'model_ema': get_state_dict(model_ema),
+                        # 'model_ema': get_state_dict(model_ema),
                         'scaler': loss_scaler.state_dict(),
                         'args': args,
                     }, checkpoint_path)

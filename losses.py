@@ -38,6 +38,9 @@ class DistillationLoss(torch.nn.Module):
             # assume that the model outputs a tuple of [outputs, outputs_kd]
             outputs, outputs_kd = outputs
         base_loss = self.base_criterion(outputs, labels, scores)
+        # base_loss = self.base_criterion(outputs, labels)
+
+
         if self.distillation_type == 'none':
             return base_loss
 
@@ -87,6 +90,9 @@ class CustomPruningLoss(nn.Module):
         # print("Threshold Loss:", torch.sum(torch.sigmoid(self.k*(score + self.c - self.alpha))))
 
         # pruning_loss = 0
+        print("target shape", target.shape)
+        print("x shape", x.shape)
+
 
         score = torch.stack(score)
         print(len(torch.where(score > (-self.c + 100))[0]))
@@ -96,8 +102,7 @@ class CustomPruningLoss(nn.Module):
 
         # print("pruning_loss", pruning_loss)
 
-        print("target shape", target.shape)
-        print("x shape", x.shape)
+
         base_loss = torch.sum(-target * F.log_softmax(x, dim=-1), dim=-1).mean()
         # loss = torch.nn.CrossEntropyLoss()
         loss = base_loss + self.pi*pruning_loss

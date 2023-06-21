@@ -15,34 +15,7 @@ from timm.utils import accuracy, ModelEma
 from losses import DistillationLoss
 import utils
 from regularizers import calc_regularization_loss
-
-
-scores = []
-
-def hook_fn(self, input, output):
-    # input is a tuple of packed inputs
-    # output is a Tensor. output.data is the Tensor we are interested
-    # print('Inside ' + self.__class__.__name__ + ' forward')
-    # print('')
-    # print('input: ', len(input))
-    # print('input[0]: ', type(input[0]))
-    # # print('output: ', type(output))
-    # # print('')
-    # print('input size:', input[0].size())
-    # print('output size:', output.data.size())
-    # print('output norm:', output.data.norm())
-
-    # print("score:",input[0][0][0][0][0])
-    scores.append(input[0])
-
-    if len(scores) == 13:
-        for i in range(12):
-            scores.pop(0)
-
-
-
-
-
+from losses import CustomPruningLoss
 
 
 def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
@@ -107,8 +80,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device):
-    criterion = torch.nn.CrossEntropyLoss()
+def evaluate(args, data_loader, model, device, logger):
+    criterion = CustomPruningLoss(c=args.pruning_c, k=args.pruning_k, alpha=args.pruning_alpha, pi = args.pruning_pi)
 
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
@@ -116,7 +89,7 @@ def evaluate(data_loader, model, device):
     # switch to evaluation mode
     model.eval()
 
-    for images, target in metric_logger.log_every(data_loader, 10, header):
+    for images, target in metric_logger.log_every(data_loader, 10, logger, header):
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
 
