@@ -193,7 +193,7 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument('--data-path', default='/datasets01/imagenet_full_size/061417/', type=str,
                         help='dataset path')
-    parser.add_argument('--data-set', default='IMNET', choices=['CIFAR', 'IMNET', 'INAT', 'INAT19'],
+    parser.add_argument('--data-set', default='IMNET', choices=['CIFAR10','CIFAR100', 'IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')
     parser.add_argument('--inat-category', default='name',
                         choices=['kingdom', 'phylum', 'class', 'order', 'supercategory', 'family', 'genus', 'name'],
@@ -237,11 +237,11 @@ def get_args_parser():
 
     # DJS custom pruning
     parser.add_argument('--custom_pruning', action='store_true')
-    parser.add_argument('--pruning_c', default=1000, type=float)
-    parser.add_argument('--pruning_k', default=100, type=float)
-    parser.add_argument('--pruning_alpha', default=1, type=float)
-    parser.add_argument('--pruning_s', default=10, type=float)
-    parser.add_argument('--pruning_pi', default=0.2, type=float)
+    parser.add_argument('--pruning_c',      default=1000, type=float)
+    parser.add_argument('--pruning_k',      default=100, type=float)
+    parser.add_argument('--pruning_alpha',  default=1, type=float)
+    parser.add_argument('--pruning_s',      default=10, type=float)
+    parser.add_argument('--pruning_pi',     default=0.2, type=float)
 
     
 
@@ -317,21 +317,29 @@ def main(args):
     logger = log(args)
     utils.init_distributed_mode(args)
 
-    print(args)
-
-    logger.info(args)
     if args.distillation_type != 'none' and args.finetune and not args.eval:
         raise NotImplementedError("Finetuning with distillation not yet supported")
 
     device = torch.device(args.device)
 
+
+
+
+
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
-    # random.seed(seed)
 
     cudnn.benchmark = True
+
+    # dataset
+    if args.data_set == 'CIFAR10':
+        args.data_path = '/home/dongjin97/dataset'
+    elif args.data_set == 'CIFAR100':
+        args.data_path = '/home/dongjin97/dataset'
+    elif args.data_set == 'IMNET':
+        args.data_path = 'home/imagenet'
 
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     dataset_val, _ = build_dataset(is_train=False, args=args)
@@ -392,6 +400,7 @@ def main(args):
         cfg = vit.config.Config()
         model = vit.utils.str2model(args.model)(
             pretrained=args.pretrained,
+            num_classes=args.nb_classes,
             s   = args.pruning_s,
             c   = args.pruning_c,
             cfg = cfg
@@ -743,12 +752,7 @@ def main(args):
                      **{f'test_{k}': v for k, v in test_stats.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
-        
-        
-
-        
-
-        
+                
         
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:

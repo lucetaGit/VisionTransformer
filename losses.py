@@ -96,6 +96,8 @@ class CustomPruningLoss(nn.Module):
 
         # print("pruning_loss", pruning_loss)
 
+        print("target shape", target.shape)
+        print("x shape", x.shape)
         base_loss = torch.sum(-target * F.log_softmax(x, dim=-1), dim=-1).mean()
         # loss = torch.nn.CrossEntropyLoss()
         loss = base_loss + self.pi*pruning_loss

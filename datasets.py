@@ -2,7 +2,6 @@
 # All rights reserved.
 import os
 import json
-
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import ImageFolder, default_loader
 
@@ -57,8 +56,11 @@ class INatDataset(ImageFolder):
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
-    if args.data_set == 'CIFAR':
-        dataset = datasets.CIFAR100(args.data_path, train=is_train, transform=transform)
+    if args.data_set == 'CIFAR10':
+        dataset = datasets.CIFAR10(args.data_path, train=is_train, transform=transform, download=True)
+        nb_classes = 100
+    if args.data_set == 'CIFAR100':
+        dataset = datasets.CIFAR100(args.data_path, train=is_train, transform=transform, download=True)
         nb_classes = 100
     elif args.data_set == 'IMNET':
         root = os.path.join(args.data_path, 'train' if is_train else 'val')
