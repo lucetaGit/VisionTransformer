@@ -631,7 +631,7 @@ def main(args):
             # compute output
             with torch.cuda.amp.autocast():
                 output = model(images)
-                loss = criterion(images, outputs, targets, scores)
+                loss = criterion(images, output, target, scores)
 
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
@@ -774,7 +774,7 @@ def main(args):
             # compute output
             with torch.cuda.amp.autocast():
                 output = model(images)
-                loss = criterion(images, outputs, targets, scores)
+                loss = criterion(images, output, target, scores)
 
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
