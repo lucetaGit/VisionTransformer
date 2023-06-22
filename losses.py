@@ -94,7 +94,7 @@ class CustomPruningLoss(nn.Module):
 
         score = torch.stack(score)
         print(len(torch.where(score > (-self.c + 100))[0]))
-
+        # print(self.pi)
 
         pruning_loss = torch.sum(torch.sigmoid(self.k*(score + self.c - self.alpha)))
 

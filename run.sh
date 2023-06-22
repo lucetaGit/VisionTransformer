@@ -4,14 +4,14 @@
 #  PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512 
   echo Pruning Threshold Traning!!
 
-for pruning_pi in 0.0000001 0.00000001
+for pruning_pi in 0.00000001 
 do
-    OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=2,3 \
+    OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=0,1,2,3 \
     python -m torch.distributed.run \
       --rdzv-backend=c10d \
       --rdzv-endpoint=localhost:24900 \
       --nnodes=1 \
-      --nproc-per-node=2 \
+      --nproc-per-node=4 \
       main.py \
       --pretrained \
       --no-model-ema \
@@ -20,7 +20,7 @@ do
       --data-set IMNET \
       --model vit_base \
       --batch-size 16 \
-      --epochs 5 \
+      --epochs 2 \
       --output_dir /home/dongjin97/projects/deit_qat_share/ckpt/ \
       --quantize \
       --custom_pruning \
